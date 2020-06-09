@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    tools:context=".MainActivity">
+
+    <Button
+        android:id="@+id/tv_load_plugin"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="加载插件一" />
+    <Button
+        android:id="@+id/tv_stat_plugin_activity"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="启动插件一Activity"
+        android:layout_marginTop="20dp" />
+    <Button
+        android:id="@+id/tv_load_plugin2"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="50dp"
+        android:text="加载插件二" />
+    <Button
+        android:id="@+id/tv_stat_plugin2_activity"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="启动插件二Activity"
+        android:layout_marginTop="20dp" />
+</LinearLayout>
