@@ -248,7 +248,6 @@ public class PluginManager {
 
     private void hookGetPackageInfo(Context context) {
         try {
-            // sPackageManager 替换  我们自己的动态代理
             Class mActivityThreadClass = Class.forName("android.app.ActivityThread");
             Field sCurrentActivityThreadField = mActivityThreadClass.getDeclaredField("sCurrentActivityThread");
             sCurrentActivityThreadField.setAccessible(true);
@@ -257,9 +256,6 @@ public class PluginManager {
             sPackageManagerField.setAccessible(true);
             final Object packageManager = sPackageManagerField.get(null);
 
-            /**
-             * 动态代理
-             */
             Class mIPackageManagerClass = Class.forName("android.content.pm.IPackageManager");
 
             Object mIPackageManagerProxy = Proxy.newProxyInstance(context.getClassLoader(),
@@ -272,13 +268,11 @@ public class PluginManager {
                             if ("getPackageInfo".equals(method.getName())) {
                                 return new PackageInfo();
                             }
-                            // 让系统正常继续执行下去
                             return method.invoke(packageManager, args);
                         }
                     });
 
 
-            // 替换  狸猫换太子   换成我们自己的 动态代理
             sPackageManagerField.set(null, mIPackageManagerProxy);
 
         } catch (Exception e) {
@@ -286,7 +280,11 @@ public class PluginManager {
         }
     }
 
-
+    /*
+     * SDK源码中Activity由LoadedApk创建
+     * LoadedApk缓存在ActivityThread的mPackages中
+     * 所以需要将为插件创建LoadedApk并存放进ActivityThread的mPackages中
+     */
     private void hookLoadedApk(Context context, String apkPath) throws FileNotFoundException, ClassNotFoundException, NoSuchMethodException, InvocationTargetException, IllegalAccessException, NoSuchFieldException, InstantiationException {
         File file = new File(apkPath);
         if (!file.exists()) {
@@ -294,11 +292,8 @@ public class PluginManager {
         }
         String pluginPath = file.getAbsolutePath();
 
-        // mPackages 添加 自定义的LoadedApk
-        // final ArrayMap<String, WeakReference<LoadedApk>> mPackages 添加自定义LoadedApk
         Class mActivityThreadClass = Class.forName("android.app.ActivityThread");
 
-        // 执行此方法 public static ActivityThread currentActivityThread() 拿到 ActivityThread对象
         Object mActivityThread = mActivityThreadClass.getMethod("currentActivityThread").invoke(null);
 
         Field mPackagesField = mActivityThreadClass.getDeclaredField("mPackages");
@@ -310,33 +305,39 @@ public class PluginManager {
         Class mCompatibilityInfoClass = Class.forName("android.content.res.CompatibilityInfo");
         Field defaultField = mCompatibilityInfoClass.getDeclaredField("DEFAULT_COMPATIBILITY_INFO");
         defaultField.setAccessible(true);
+        /*
+         * 创建LoadedApk需要的参数
+         */
         Object defaultObj = defaultField.get(null);
 
+        /*
+         * 创建LoadedApk需要的参数
+         */
         ApplicationInfo applicationInfo = getApplicationInfoAction(apkPath);
 
+        /*
+         * 反射调用ActivityThread的getPackageInfoNoCheck方法创建LoadedApk
+         */
         Method mLoadedApkMethod = mActivityThreadClass.getMethod("getPackageInfoNoCheck", ApplicationInfo.class, mCompatibilityInfoClass);
         Object mLoadedApk = mLoadedApkMethod.invoke(mActivityThread, applicationInfo, defaultObj);
 
         File fileDir = context.getDir("pulginPathDir", Context.MODE_PRIVATE);
 
-        // 自定义 加载插件的 ClassLoader
         ClassLoader classLoader = new DexClassLoader(pluginPath,fileDir.getAbsolutePath(), null, context.getClassLoader());
 
         Field mClassLoaderField = mLoadedApk.getClass().getDeclaredField("mClassLoader");
         mClassLoaderField.setAccessible(true);
-        mClassLoaderField.set(mLoadedApk, classLoader); // 替换 LoadedApk 里面的 ClassLoader
+        mClassLoaderField.set(mLoadedApk, classLoader);
 
-        WeakReference weakReference = new WeakReference(mLoadedApk); // 放入 自定义的LoadedApk --》 插件的
-        mPackages.put(applicationInfo.packageName, weakReference); // 增加了我们自己的LoadedApk
+        WeakReference weakReference = new WeakReference(mLoadedApk);
+        mPackages.put(applicationInfo.packageName, weakReference);
     }
 
     private ApplicationInfo getApplicationInfoAction(String apkPath) throws InstantiationException, IllegalAccessException, ClassNotFoundException, NoSuchMethodException, InvocationTargetException {
-        // 执行此public static ApplicationInfo generateApplicationInfo方法，拿到ApplicationInfo
         Class mPackageParserClass = Class.forName("android.content.pm.PackageParser");
 
         Object mPackageParser = mPackageParserClass.newInstance();
 
-        // generateApplicationInfo方法的类类型
         Class $PackageClass = Class.forName("android.content.pm.PackageParser$Package");
         Class mPackageUserStateClass = Class.forName("android.content.pm.PackageUserState");
 
