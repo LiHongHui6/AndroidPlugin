@@ -275,8 +275,9 @@ public class PluginManager {
                                 Object packageInfo = method.invoke(packageManager, args);
                                 if (packageInfo == null){
                                     Log.d(TAG, "为插件创建packageInfo");
-                                    return new PackageInfo();
+                                    packageInfo = new PackageInfo();
                                 }
+                                return packageInfo;
                             }
                             return method.invoke(packageManager, args);
                         }
