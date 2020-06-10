@@ -29,14 +29,24 @@ import dalvik.system.DexClassLoader;
  * 邮箱：382039099@qq.com
  */
 public class PluginManager {
-    private static final String TAG = "PluginManager";
+    private static final String TAG = "TAG_PluginManager";
     private volatile static PluginManager instance = new PluginManager();
 
     public static PluginManager getInstance(){
         return instance;
     }
 
-    public void addPlugin(Application context, String apkPath){
+    public void loadPlugin(Application context, String apkPath){
+
+        /*
+         * hookPMS避免创建Loaded时报错
+         */
+        try {
+            hookGetPackageInfo(context);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
         /*
          * 为插件在宿主中创建LoadedApk，让宿主能够加载插件中的类及资源文件
          */
@@ -97,13 +107,21 @@ public class PluginManager {
                     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
                         if ("startActivity".equals(method.getName())) {
 
-                            //将插件Activity替换成PlaceHolderActivity绕过AMS检查
-                            Log.d(TAG, "插件Activity替换成PlaceHolderActivity绕过AMS检查");
-                            Intent intent = new Intent(context, PlaceHolderActivity.class);
-                            intent.putExtra("actionIntent", ((Intent) args[2]));
-                            args[2] = intent;
+                            Intent intentReal = (Intent) args[2];
+
+                            String packageName = context.getPackageName();
+                            String packageName1 = intentReal.getComponent().getPackageName();
+
+                            if (!packageName.equals(packageName1)){
+                                //跳转插件Activity
+                                //将插件Activity替换成PlaceHolderActivity绕过AMS检查
+                                Log.d(TAG, "插件Activity替换成PlaceHolderActivity绕过AMS检查");
+                                Intent intent = new Intent(context, PlaceHolderActivity.class);
+                                intent.putExtra("actionIntent", intentReal);
+                                args[2] = intent;
+                            }
                         }
-                        Log.d(TAG, "拦截到了IActivityManager里面的方法" + method.getName());
+                        //Log.d(TAG, "拦截到了IActivityManager里面的方法" + method.getName());
                         return method.invoke(mIActivityManager, args);
                     }
                 });
@@ -138,11 +156,19 @@ public class PluginManager {
                     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
                         if ("startActivity".equals(method.getName())) {
 
-                            //将插件Activity替换成PlaceHolderActivity绕过AMS检查
-                            Log.d(TAG, "插件Activity替换成PlaceHolderActivity绕过AMS检查");
-                            Intent intent = new Intent(context, PlaceHolderActivity.class);
-                            intent.putExtra("actionIntent", ((Intent) args[2]));
-                            args[2] = intent;
+                            Intent intentReal = (Intent) args[2];
+
+                            String packageName = context.getPackageName();
+                            String packageName1 = intentReal.getComponent().getPackageName();
+
+                            if (!packageName.equals(packageName1)){
+                                //跳转插件Activity
+                                //将插件Activity替换成PlaceHolderActivity绕过AMS检查
+                                Log.d(TAG, "插件Activity替换成PlaceHolderActivity绕过AMS检查");
+                                Intent intent = new Intent(context, PlaceHolderActivity.class);
+                                intent.putExtra("actionIntent", intentReal);
+                                args[2] = intent;
+                            }
                         }
                         Log.d(TAG, "拦截到了IActivityManager里面的方法" + method.getName());
                         return method.invoke(mIActivityManager, args);
@@ -204,12 +230,10 @@ public class PluginManager {
                             activityInfoField.setAccessible(true);
                             ActivityInfo activityInfo = (ActivityInfo) activityInfoField.get(obj);
 
-                            if (actionIntent.getPackage() == null) { //插件
-                                activityInfo.applicationInfo.packageName = actionIntent.getComponent().getPackageName();
-                                hookGetPackageInfo(context);
-                            } else { // 宿主
-                                activityInfo.applicationInfo.packageName = actionIntent.getPackage();
-                            }
+                            String packageName = actionIntent.getComponent().getPackageName();
+                            activityInfo.name = actionIntent.getComponent().getClassName();
+                            activityInfo.packageName = packageName;
+                            activityInfo.applicationInfo.packageName = packageName;
                         }
 
                     } catch (Exception e) {
@@ -260,6 +284,8 @@ public class PluginManager {
             e.printStackTrace();
         }
     }
+
+
     private void hookLoadedApk(Context context, String apkPath) throws FileNotFoundException, ClassNotFoundException, NoSuchMethodException, InvocationTargetException, IllegalAccessException, NoSuchFieldException, InstantiationException {
         File file = new File(apkPath);
         if (!file.exists()) {
