@@ -39,7 +39,7 @@ public class PluginManager {
     public void loadPlugin(Application context, String apkPath){
 
         /*
-         * hookPMS避免创建Loaded时报错
+         * hookPMS避免插件LoadedApk创建Application时报错
          */
         try {
             hookGetPackageInfo(context);
@@ -245,6 +245,7 @@ public class PluginManager {
             return true;
         }
     }
+
     private void hookGetPackageInfo(Context context) {
         try {
             // sPackageManager 替换  我们自己的动态代理
