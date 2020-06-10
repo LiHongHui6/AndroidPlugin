@@ -10,6 +10,6 @@ public class MyApplication extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
-        PluginManager.getInstance().steerByAMSCheck(this);
+        PluginManager.getInstance().init(this);
     }
 }

@@ -39,15 +39,6 @@ public class PluginManager {
     public void loadPlugin(Application context, String apkPath){
 
         /*
-         * hookPMS避免插件LoadedApk创建Application时报错
-         */
-        try {
-            hookGetPackageInfo(context);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        /*
          * 为插件在宿主中创建LoadedApk，让宿主能够加载插件中的类及资源文件
          */
         try {
@@ -58,7 +49,11 @@ public class PluginManager {
         }
     }
 
-    public void steerByAMSCheck(Application context){
+    public void init(Application context){
+        steerBySystemCheck(context);
+    }
+
+    private void steerBySystemCheck(Application context){
         /*
          * 绕过ActivityManagerService检测
          * 由于插件Activity没有在宿主的AndroidManifest中注册，宿主直接启动会抛出异常ActivityNotFoundException
@@ -72,6 +67,7 @@ public class PluginManager {
             }else {
                 hookAMSCheck26(context);
             }
+
         } catch (Exception e) {
             Log.d(TAG, "hookAMSCheck fail:" + e.getMessage());
             e.printStackTrace();
@@ -84,6 +80,15 @@ public class PluginManager {
             hookLaunchActivity(context);
         } catch (Exception e) {
             Log.d(TAG, "hookLaunchActivity fail:" + e.getMessage());
+            e.printStackTrace();
+        }
+
+        /*
+         * hookPMS避免插件LoadedApk创建Application时报错
+         */
+        try {
+            hookGetPackageInfo(context);
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
@@ -170,7 +175,7 @@ public class PluginManager {
                                 args[2] = intent;
                             }
                         }
-                        Log.d(TAG, "拦截到了IActivityManager里面的方法" + method.getName());
+                        //Log.d(TAG, "拦截到了IActivityManager里面的方法" + method.getName());
                         return method.invoke(mIActivityManager, args);
                     }
                 });
@@ -234,6 +239,7 @@ public class PluginManager {
                             activityInfo.name = actionIntent.getComponent().getClassName();
                             activityInfo.packageName = packageName;
                             activityInfo.applicationInfo.packageName = packageName;
+                            Log.d(TAG, "把占位Activity换成插件Activity");
                         }
 
                     } catch (Exception e) {
@@ -246,7 +252,7 @@ public class PluginManager {
         }
     }
 
-    private void hookGetPackageInfo(Context context) {
+    private void hookGetPackageInfo(final Context context) {
         try {
             Class mActivityThreadClass = Class.forName("android.app.ActivityThread");
             Field sCurrentActivityThreadField = mActivityThreadClass.getDeclaredField("sCurrentActivityThread");
@@ -266,7 +272,11 @@ public class PluginManager {
                         @Override
                         public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
                             if ("getPackageInfo".equals(method.getName())) {
-                                return new PackageInfo();
+                                Object packageInfo = method.invoke(packageManager, args);
+                                if (packageInfo == null){
+                                    Log.d(TAG, "为插件创建packageInfo");
+                                    return new PackageInfo();
+                                }
                             }
                             return method.invoke(packageManager, args);
                         }
