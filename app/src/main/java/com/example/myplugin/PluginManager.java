@@ -1,6 +1,5 @@
 package com.example.myplugin;
 
-import android.app.Activity;
 import android.app.Application;
 import android.content.Context;
 import android.content.Intent;
@@ -8,7 +7,7 @@ import android.content.pm.ActivityInfo;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
-import android.os.Environment;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Message;
 import android.util.Log;
@@ -58,7 +57,11 @@ public class PluginManager {
          * 以绕过ActivityManagerService检测
          */
         try {
-            hookAMSCheck(context);
+            if (Build.VERSION.SDK_INT < 26){
+                hookAMSCheck25(context);
+            }else {
+                hookAMSCheck26(context);
+            }
         } catch (Exception e) {
             Log.d(TAG, "hookAMSCheck fail:" + e.getMessage());
             e.printStackTrace();
@@ -75,7 +78,7 @@ public class PluginManager {
         }
     }
 
-    private void hookAMSCheck(final Application context) throws ClassNotFoundException, NoSuchMethodException, InvocationTargetException, IllegalAccessException, NoSuchFieldException {
+    private void hookAMSCheck25(final Application context) throws ClassNotFoundException, NoSuchMethodException, InvocationTargetException, IllegalAccessException, NoSuchFieldException {
         // 动态代理
         Class mIActivityManagerClass = Class.forName("android.app.IActivityManager");
 
@@ -114,6 +117,46 @@ public class PluginManager {
         Field mInstanceField = mSingletonClass.getDeclaredField("mInstance");
         mInstanceField.setAccessible(true); // 让虚拟机不要检测 权限修饰符
         mInstanceField.set(gDefault, mIActivityManagerProxy); // 替换是需要gDefault
+    }
+
+    private void hookAMSCheck26(final Application context) throws ClassNotFoundException, NoSuchMethodException, InvocationTargetException, IllegalAccessException, NoSuchFieldException {
+        // 动态代理
+        Class mIActivityManagerClass = Class.forName("android.app.IActivityManager");
+
+
+        Class mActivityManager = Class.forName("android.app.ActivityManager");
+        final Object mIActivityManager = mActivityManager.getMethod("getService").invoke(null);
+
+        Object mIActivityManagerProxy = Proxy.newProxyInstance(
+
+                context.getClassLoader(),
+
+                new Class[]{mIActivityManagerClass},
+
+                new InvocationHandler() {
+                    @Override
+                    public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+                        if ("startActivity".equals(method.getName())) {
+
+                            //将插件Activity替换成PlaceHolderActivity绕过AMS检查
+                            Log.d(TAG, "插件Activity替换成PlaceHolderActivity绕过AMS检查");
+                            Intent intent = new Intent(context, PlaceHolderActivity.class);
+                            intent.putExtra("actionIntent", ((Intent) args[2]));
+                            args[2] = intent;
+                        }
+                        Log.d(TAG, "拦截到了IActivityManager里面的方法" + method.getName());
+                        return method.invoke(mIActivityManager, args);
+                    }
+                });
+
+        Field mIActivityManagerSingleton = mActivityManager.getDeclaredField("IActivityManagerSingleton");
+        mIActivityManagerSingleton.setAccessible(true); // 授权
+        Object oIActivityManagerSingleton = mIActivityManagerSingleton.get(null);
+
+        Class mSingletonClass = Class.forName("android.util.Singleton");
+        Field mInstanceField = mSingletonClass.getDeclaredField("mInstance");
+        mInstanceField.setAccessible(true); // 让虚拟机不要检测 权限修饰符
+        mInstanceField.set(oIActivityManagerSingleton, mIActivityManagerProxy); // 替换是需要gDefault
     }
 
     private void hookLaunchActivity(Application context) throws NoSuchFieldException, ClassNotFoundException, NoSuchMethodException, IllegalAccessException, InvocationTargetException {
